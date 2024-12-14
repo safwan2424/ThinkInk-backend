@@ -308,7 +308,8 @@ cloudinary.config({
 // Middleware
 app.use(cors({
     credentials: true,
-    origin: 'https://think-ink.vercel.app',
+    origin:'*',
+    // origin: 'https://think-ink.vercel.app',
 }));
 app.use(express.json());
 app.use(cookieParser());
@@ -401,18 +402,39 @@ app.post('/login', async (req, res) => {
 //     res.json({ userId: req.userInfo.userId, username: req.userInfo.username });
 // });
 app.get('/profile', (req, res) => {
-        const { token } = req.cookies;
-        if (!token) {
-            return res.status(401).json({ error: 'Unauthorized' });
+    const { token } = req.cookies;
+
+    if (!token) {
+        return res.status(401).json({ error: 'Unauthorized. No token provided.' });
+    }
+
+    jwt.verify(token, secret, {}, (err, info) => {
+        if (err) {
+            return res.status(401).json({ error: 'Unauthorized. Invalid or expired token.' });
         }
-    
-        jwt.verify(token, secret, {}, (err, info) => {
-            if (err) {
-                return res.status(401).json({ error: 'Invalid token' });
-            }
-            res.json({ userId: info.userId, username: info.username });
-        });
+
+        // Check for required user fields
+        if (!info.userId || !info.username) {
+            return res.status(400).json({ error: 'Invalid token payload.' });
+        }
+
+        res.json({ userId: info.userId, username: info.username });
     });
+});
+
+// app.get('/profile', (req, res) => {
+//         const { token } = req.cookies;
+//         if (!token) {
+//             return res.status(401).json({ error: 'Unauthorized' });
+//         }
+    
+//         jwt.verify(token, secret, {}, (err, info) => {
+//             if (err) {
+//                 return res.status(401).json({ error: 'Invalid token' });
+//             }
+//             res.json({ userId: info.userId, username: info.username });
+//         });
+//     });
 // Logout Endpoint
 app.post('/logout', (req, res) => {
     res.cookie('token', '', { maxAge: 0, httpOnly: true }).json({ message: 'Logged out successfully' });
