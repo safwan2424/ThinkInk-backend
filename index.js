@@ -306,10 +306,24 @@ cloudinary.config({
 });
 
 // Middleware
+// app.use(cors({
+//     credentials: true,
+//      origin: 'https://think-ink.vercel.app',
+// }));
+const allowedOrigins = ['https://think-ink.vercel.app', 'http://localhost:5173'];
+
 app.use(cors({
-    credentials: true,
-    origin:'*',
-    // origin: 'https://think-ink.vercel.app',
+  credentials: true,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true); // Origin is allowed
+    } else {
+      callback(new Error('Not allowed by CORS')); // Origin is not allowed
+    }
+  },
 }));
 app.use(express.json());
 app.use(cookieParser());
