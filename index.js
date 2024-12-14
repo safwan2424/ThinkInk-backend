@@ -30,7 +30,7 @@ app.use(
         origin: 'https://think-ink.vercel.app', // Removed trailing slash
     })
 );
-app.use(cors({ credentials: true, origin: '*' }));
+
 
 
 app.use(express.json());
