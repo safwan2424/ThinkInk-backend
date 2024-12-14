@@ -324,20 +324,20 @@ mongoose.connect(mongoURI, {
     .catch((err) => console.error('Error connecting to MongoDB:', err));
 
 // Helper function to verify JWT token
-function verifyToken(req, res, next) {
-    const { token } = req.cookies;
-    if (!token) {
-        return res.status(401).json({ error: 'Unauthorized' });
-    }
+// function verifyToken(req, res, next) {
+//     const { token } = req.cookies;
+//     if (!token) {
+//         return res.status(401).json({ error: 'Unauthorized' });
+//     }
 
-    jwt.verify(token, secret, (err, info) => {
-        if (err) {
-            return res.status(401).json({ error: 'Invalid token' });
-        }
-        req.userInfo = info; // Store user info in the request for later use
-        next();
-    });
-}
+//     jwt.verify(token, secret, (err, info) => {
+//         if (err) {
+//             return res.status(401).json({ error: 'Invalid token' });
+//         }
+//         req.userInfo = info; // Store user info in the request for later use
+//         next();
+//     });
+// }
 
 // Register Endpoint
 app.post('/register', async (req, res) => {
@@ -397,95 +397,215 @@ app.post('/login', async (req, res) => {
 });
 
 // Profile Endpoint
-app.get('/profile', verifyToken, (req, res) => {
-    res.json({ userId: req.userInfo.userId, username: req.userInfo.username });
-});
-
+// app.get('/profile', verifyToken, (req, res) => {
+//     res.json({ userId: req.userInfo.userId, username: req.userInfo.username });
+// });
+app.get('/profile', (req, res) => {
+        const { token } = req.cookies;
+        if (!token) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+    
+        jwt.verify(token, secret, {}, (err, info) => {
+            if (err) {
+                return res.status(401).json({ error: 'Invalid token' });
+            }
+            res.json({ userId: info.userId, username: info.username });
+        });
+    });
 // Logout Endpoint
 app.post('/logout', (req, res) => {
     res.cookie('token', '', { maxAge: 0, httpOnly: true }).json({ message: 'Logged out successfully' });
 });
 
 // Post Creation Endpoint with Cloudinary Upload
-app.post('/post', verifyToken, uploadMiddleware.single('file'), async (req, res) => {
-    try {
-        const { title, summary, content } = req.body;
+// app.post('/post', verifyToken, uploadMiddleware.single('file'), async (req, res) => {
+//     try {
+//         const { title, summary, content } = req.body;
 
-        if (!title || !summary || !content) {
-            return res.status(400).json({ error: 'Missing required fields' });
+//         if (!title || !summary || !content) {
+//             return res.status(400).json({ error: 'Missing required fields' });
+//         }
+
+//         const filePath = req.file.path;
+//         const cloudinaryResponse = await cloudinary.uploader.upload(filePath, {
+//             folder: 'posts/',
+//             resource_type: 'auto',
+//         });
+
+//         fs.unlinkSync(filePath);
+
+//         const postDoc = await PostModel.create({
+//             title,
+//             summary,
+//             content,
+//             cover: cloudinaryResponse.secure_url,
+//             author: req.userInfo.userId,
+//         });
+
+//         const populatedPost = await postDoc.populate('author', 'username');
+
+//         res.status(201).json(populatedPost);
+//     } catch (err) {
+//         console.error('Error creating post:', err);
+//         res.status(500).json({ error: 'Failed to create post' });
+//     }
+// });
+app.post('/post', uploadMiddleware.single('file'), async (req, res) => {
+    try {
+        const { originalname, path: tempPath } = req.file;
+        const extension = path.extname(originalname);
+        const newPath = tempPath + extension;
+
+        fs.renameSync(tempPath, newPath);  // Rename the file with the proper extension
+        const { token } = req.cookies;
+        if (!token) {
+            return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const filePath = req.file.path;
-        const cloudinaryResponse = await cloudinary.uploader.upload(filePath, {
-            folder: 'posts/',
-            resource_type: 'auto',
+        // Verify the token
+        jwt.verify(token, secret, async (err, info) => {
+            if (err) {
+                return res.status(401).json({ error: 'Invalid token' });
+            }
+
+            const { title, summary, content } = req.body;
+
+            // Validate request body
+            if (!title || !summary || !content) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            // Upload the image to Cloudinary
+            const cloudinaryResponse = await cloudinary.uploader.upload(newPath, {
+                folder: 'posts/',  // Specify the folder in Cloudinary
+                resource_type: 'auto',  // Let Cloudinary automatically detect the file type
+            });
+
+            // Delete the file after uploading it to Cloudinary
+            fs.unlinkSync(newPath);
+
+            // Create the post with the Cloudinary image URL
+            const postDoc = await PostModel.create({
+                title,
+                summary,
+                content,
+                cover: cloudinaryResponse.secure_url,  // Use the secure URL from Cloudinary
+                author: info.userId, // Use the userId from the token info
+            });
+
+            // Populate the author field with the user's details
+            const populatedPost = await postDoc.populate('author', 'username');
+
+            res.status(201).json(populatedPost);  // Return the post with author details
         });
-
-        fs.unlinkSync(filePath);
-
-        const postDoc = await PostModel.create({
-            title,
-            summary,
-            content,
-            cover: cloudinaryResponse.secure_url,
-            author: req.userInfo.userId,
-        });
-
-        const populatedPost = await postDoc.populate('author', 'username');
-
-        res.status(201).json(populatedPost);
     } catch (err) {
         console.error('Error creating post:', err);
         res.status(500).json({ error: 'Failed to create post' });
     }
 });
 
+
 // Update Post
-app.put('/post/:id', verifyToken, uploadMiddleware.single('file'), async (req, res) => {
-    try {
-        const { id } = req.params;
+// app.put('/post/:id', verifyToken, uploadMiddleware.single('file'), async (req, res) => {
+//     try {
+//         const { id } = req.params;
+//         const postDoc = await PostModel.findById(id);
+
+//         if (!postDoc) {
+//             return res.status(404).json({ error: 'Post not found' });
+//         }
+
+//         if (String(postDoc.author) !== String(req.userInfo.userId)) {
+//             return res.status(403).json({ error: 'Forbidden' });
+//         }
+
+//         const { title, summary, content } = req.body;
+//         let newCoverUrl = postDoc.cover;
+
+//         if (req.file) {
+//             const filePath = req.file.path;
+//             const cloudinaryResponse = await cloudinary.uploader.upload(filePath, {
+//                 folder: 'posts/',
+//                 resource_type: 'auto',
+//             });
+
+//             if (postDoc.cover) {
+//                 const publicId = postDoc.cover.split('/').pop().split('.')[0];
+//                 await cloudinary.uploader.destroy(`posts/${publicId}`);
+//             }
+
+//             newCoverUrl = cloudinaryResponse.secure_url;
+//             fs.unlinkSync(filePath);
+//         }
+
+//         postDoc.title = title;
+//         postDoc.summary = summary;
+//         postDoc.content = content;
+//         postDoc.cover = newCoverUrl;
+
+//         await postDoc.save();
+
+//         res.status(200).json(postDoc);
+//     } catch (err) {
+//         console.error('Error updating post:', err);
+//         res.status(500).json({ error: 'Failed to update post' });
+//     }
+// });
+app.put('/post/:id', uploadMiddleware.single('file'), async (req, res) => {
+    const { id } = req.params;
+    const { token } = req.cookies;
+    
+    // Verify the token and get user info
+    jwt.verify(token, secret, {}, async (err, info) => {
+        if (err) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Find the post by ID
         const postDoc = await PostModel.findById(id);
+        if (!postDoc) return res.status(404).json({ error: 'Post not found' });
 
-        if (!postDoc) {
-            return res.status(404).json({ error: 'Post not found' });
-        }
-
-        if (String(postDoc.author) !== String(req.userInfo.userId)) {
-            return res.status(403).json({ error: 'Forbidden' });
-        }
+        // Ensure the user is the author of the post
+        const isAuthor = JSON.stringify(postDoc.author) === JSON.stringify(info.userId);
+        if (!isAuthor) return res.status(403).json({ error: 'Forbidden' });
 
         const { title, summary, content } = req.body;
-        let newCoverUrl = postDoc.cover;
+        let newCoverUrl = postDoc.cover;  // Retain current cover URL if no new file is uploaded
 
+        // Handle file upload path if file exists
         if (req.file) {
-            const filePath = req.file.path;
-            const cloudinaryResponse = await cloudinary.uploader.upload(filePath, {
-                folder: 'posts/',
-                resource_type: 'auto',
+            // Upload the new file to Cloudinary
+            const cloudinaryResponse = await cloudinary.uploader.upload(req.file.path, {
+                folder: 'posts/',  // Specify the folder in Cloudinary
+                resource_type: 'auto',  // Let Cloudinary automatically detect the file type
             });
 
+            // Update the cover URL with the Cloudinary URL
+            newCoverUrl = cloudinaryResponse.secure_url;
+
+            // Remove the old file from Cloudinary if necessary
             if (postDoc.cover) {
-                const publicId = postDoc.cover.split('/').pop().split('.')[0];
-                await cloudinary.uploader.destroy(`posts/${publicId}`);
+                const oldFilePublicId = postDoc.cover.split('/').pop().split('.')[0];
+                await cloudinary.uploader.destroy(`posts/${oldFilePublicId}`);  // Delete the old image from Cloudinary
             }
 
-            newCoverUrl = cloudinaryResponse.secure_url;
-            fs.unlinkSync(filePath);
+            // Delete the local file after upload (optional, as it's already done by multer)
+            fs.unlinkSync(req.file.path);
         }
 
+        // Update fields directly
         postDoc.title = title;
         postDoc.summary = summary;
         postDoc.content = content;
-        postDoc.cover = newCoverUrl;
+        postDoc.cover = newCoverUrl;  // Update cover image if a new file is uploaded
 
+        // Save the updated document
         await postDoc.save();
 
+        // Return the updated post
         res.status(200).json(postDoc);
-    } catch (err) {
-        console.error('Error updating post:', err);
-        res.status(500).json({ error: 'Failed to update post' });
-    }
+    });
 });
+
 
 // Fetch All Posts
 app.get('/post', async (req, res) => {
@@ -516,31 +636,59 @@ app.get('/post/:id', async (req, res) => {
 });
 
 // Delete Post
-app.delete('/post/:id', verifyToken, async (req, res) => {
-    try {
-        const { id } = req.params;
+// app.delete('/post/:id', verifyToken, async (req, res) => {
+//     try {
+//         const { id } = req.params;
+//         const postDoc = await PostModel.findById(id);
+
+//         if (!postDoc) {
+//             return res.status(404).json({ error: 'Post not found' });
+//         }
+
+//         if (String(postDoc.author) !== String(req.userInfo.userId)) {
+//             return res.status(403).json({ error: 'Forbidden' });
+//         }
+
+//         if (postDoc.cover) {
+//             const publicId = postDoc.cover.split('/').pop().split('.')[0];
+//             await cloudinary.uploader.destroy(`posts/${publicId}`);
+//         }
+
+//         await PostModel.findByIdAndDelete(id);
+
+//         res.status(200).json({ success: true, message: 'Post deleted successfully' });
+//     } catch (err) {
+//         console.error('Error deleting post:', err);
+//         res.status(500).json({ error: 'Failed to delete post' });
+//     }
+// });
+//Delete Post Endpoint (DELETE)
+app.delete('/post/:id', async (req, res) => {
+    const { id } = req.params;
+    const { token } = req.cookies;
+
+    jwt.verify(token, secret, {}, async (err, info) => {
+        if (err) return res.status(401).json({ error: 'Unauthorized' });
+
+        // Find the post by ID
         const postDoc = await PostModel.findById(id);
+        if (!postDoc) return res.status(404).json({ error: 'Post not found' });
 
-        if (!postDoc) {
-            return res.status(404).json({ error: 'Post not found' });
-        }
+        // Ensure the user is the author of the post
+        const isAuthor = JSON.stringify(postDoc.author) === JSON.stringify(info.userId);
+        if (!isAuthor) return res.status(403).json({ error: 'Forbidden' });
 
-        if (String(postDoc.author) !== String(req.userInfo.userId)) {
-            return res.status(403).json({ error: 'Forbidden' });
-        }
-
-        if (postDoc.cover) {
-            const publicId = postDoc.cover.split('/').pop().split('.')[0];
-            await cloudinary.uploader.destroy(`posts/${publicId}`);
-        }
-
+        // Delete the post from the database
         await PostModel.findByIdAndDelete(id);
 
+        // Remove the cover image from Cloudinary if it exists
+        if (postDoc.cover) {
+            const filePublicId = postDoc.cover.split('/').pop().split('.')[0];
+            await cloudinary.uploader.destroy(`posts/${filePublicId}`);  // Delete the image from Cloudinary
+        }
+
         res.status(200).json({ success: true, message: 'Post deleted successfully' });
-    } catch (err) {
-        console.error('Error deleting post:', err);
-        res.status(500).json({ error: 'Failed to delete post' });
-    }
+    });
 });
 
 // Start the Server
