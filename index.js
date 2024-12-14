@@ -8,7 +8,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
-const uploadMiddleware = multer({ dest: 'uploads/' });
+const uploadMiddleware = multer({ dest: '/tmp' });
+
 const fs = require('fs');
 const cloudinary = require('cloudinary').v2;
 const path = require('path');
