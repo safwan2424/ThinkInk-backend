@@ -428,24 +428,50 @@ app.post('/login', async (req, res) => {
 //         res.json({ userId: info.userId, username: info.username });
 //     });
 // });
-app.get('/profile', (req, res) => {
-    const { token } = req.cookies;
+// app.get('/profile', (req, res) => {
+//     const { token } = req.cookies;
 
-    if (!token) {
-        // If no token is provided, return a clear response
-        return res.status(200).json({ loggedIn: false, message: 'No user logged in.' });
-    }
+//     if (!token) {
+//         // If no token is provided, return a clear response
+//         return res.status(200).json({ loggedIn: false, message: 'No user logged in.' });
+//     }
 
-    jwt.verify(token, secret, {}, (err, info) => {
-        if (err) {
-            // If the token is invalid or expired, return a similar response
-            return res.status(200).json({ loggedIn: false, message: 'Invalid or expired token.' });
+//     jwt.verify(token, secret, {}, (err, info) => {
+//         if (err) {
+//             // If the token is invalid or expired, return a similar response
+//             return res.status(200).json({ loggedIn: false, message: 'Invalid or expired token.' });
+//         }
+
+//         // If the token is valid, return the user info
+//         res.json({ loggedIn: true, userId: info.userId, username: info.username });
+//     });
+// });
+app.get('/profile', async (req, res) => {
+    try {
+        const token = req.cookies.token; // Retrieve the token from cookies
+        if (!token) {
+            return res.status(401).json({ loggedIn: false, error: 'No token found' });
         }
 
-        // If the token is valid, return the user info
-        res.json({ loggedIn: true, userId: info.userId, username: info.username });
-    });
+        const decoded = jwt.verify(token, secret); // Verify the token
+        const user = await User.findById(decoded.userId); // Find user by ID from the decoded token
+
+        if (!user) {
+            return res.status(401).json({ loggedIn: false, error: 'Invalid user' });
+        }
+
+        // Return user information and indicate they are logged in
+        res.status(200).json({
+            loggedIn: true,
+            userId: user._id,
+            username: user.username,
+        });
+    } catch (err) {
+        console.error('Error fetching profile:', err);
+        res.status(500).json({ loggedIn: false, error: 'Failed to fetch profile' });
+    }
 });
+
 
 // app.get('/profile', verifyToken, (req, res) => {
 //     res.json({ userId: req.userInfo.userId, username: req.userInfo.username });
