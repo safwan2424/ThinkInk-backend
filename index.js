@@ -39,13 +39,26 @@ app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // MongoDB Connection
-const mongoURI = process.env.MONGODB_URI;
 // mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
 //     .then(() => console.log('Connected to MongoDB'))
 //     .catch((err) => console.error('Error connecting to MongoDB:', err));
-    mongoose.connect(mongoURI)
-    .then(() => console.log('Connected to MongoDB'))
-    .catch((err) => console.error('Error connecting to MongoDB:', err));
+const mongoURI = process.env.MONGODB_URI;
+
+const options = {
+    
+    serverSelectionTimeoutMS: 5000, // Adjust server selection timeout
+    connectTimeoutMS: 10000, // Connection timeout
+  };
+  
+  // Attempt to connect to MongoDB with the options
+  mongoose.connect(mongoURI, options)
+    .then(() => {
+      console.log('Connected to MongoDB');
+    })
+    .catch((err) => {
+      console.error('Error connecting to MongoDB:', err);
+    });
+   
 
 // Register Endpoint
 app.post('/register', async (req, res) => {
