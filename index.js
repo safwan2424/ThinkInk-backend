@@ -262,6 +262,6 @@ app.get('/post/:id', async (req, res) => {
 });
 
 // Start the Server
-app.listen(3000, () => {
-    console.log('Server is running on port 3000');
-});
+module.exports = (req, res) => {
+    app(req, res); // Handles the request and response in a serverless function
+};
