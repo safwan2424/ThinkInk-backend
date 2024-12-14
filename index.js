@@ -412,20 +412,38 @@ app.post('/login', async (req, res) => {
 });
 
 // Profile Endpoint
+// app.get('/profile', (req, res) => {
+//     console.log(req.cookies); // Log cookies for debugging
+//     const { token } = req.cookies;
+
+//     if (!token) {
+//         return res.status(401).json({ error: 'Unauthorized. No token provided.' });
+//     }
+
+//     jwt.verify(token, secret, {}, (err, info) => {
+//         if (err) {
+//             return res.status(401).json({ error: 'Invalid or expired token.' });
+//         }
+
+//         res.json({ userId: info.userId, username: info.username });
+//     });
+// });
 app.get('/profile', (req, res) => {
-    console.log(req.cookies); // Log cookies for debugging
     const { token } = req.cookies;
 
     if (!token) {
-        return res.status(401).json({ error: 'Unauthorized. No token provided.' });
+        // If no token is provided, return a clear response
+        return res.status(200).json({ loggedIn: false, message: 'No user logged in.' });
     }
 
     jwt.verify(token, secret, {}, (err, info) => {
         if (err) {
-            return res.status(401).json({ error: 'Invalid or expired token.' });
+            // If the token is invalid or expired, return a similar response
+            return res.status(200).json({ loggedIn: false, message: 'Invalid or expired token.' });
         }
 
-        res.json({ userId: info.userId, username: info.username });
+        // If the token is valid, return the user info
+        res.json({ loggedIn: true, userId: info.userId, username: info.username });
     });
 });
 
